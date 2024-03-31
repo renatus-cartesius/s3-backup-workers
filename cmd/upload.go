@@ -53,6 +53,7 @@ func exec(cmd *cobra.Command, args []string) {
 		jobs <- *job
 	}
 
+	// TODO: refac to using sync.WaitGroup
 	for range dirs {
 		<-done
 	}
