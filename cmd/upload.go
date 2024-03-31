@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"backup-workers/internal/workers"
 	"log"
+	"os"
 
 	"github.com/spf13/cobra"
 )
@@ -26,4 +28,28 @@ func exec(cmd *cobra.Command, args []string) {
 	}
 	log.Println("Reading config from", config)
 	log.Println("Started uploading to S3")
+
+	// Getting subdirs
+	dirs, err := os.ReadDir("/")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	done := make(chan int)
+
+	for i, d := range dirs {
+		// if d.IsDir() {
+		// 	worker := workers.NewBackupWorker()
+		// 	job := workers.NewBackupJob(i, d.Name())
+		// 	go worker.Do(job, done)
+		// }
+		worker := workers.NewBackupWorker()
+		job := workers.NewBackupJob(i, d.Name())
+		go worker.Do(job, done)
+	}
+
+	for range dirs {
+		<-done
+	}
+
 }
