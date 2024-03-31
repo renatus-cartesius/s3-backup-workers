@@ -2,20 +2,27 @@ package workers
 
 import (
 	"log"
-	"math/rand"
 	"time"
 )
 
 type BackupWorker struct {
+	Id   int
+	Jobs <-chan BackupJob
+	Done chan<- struct{}
 }
 
-func NewBackupWorker() *BackupWorker {
-	return &BackupWorker{}
+func NewBackupWorker(id int, jobs <-chan BackupJob, done chan<- struct{}) *BackupWorker {
+	return &BackupWorker{
+		Id:   id,
+		Jobs: jobs,
+		Done: done,
+	}
 }
 
-func (b *BackupWorker) Do(job *BackupJob, done chan int) error {
-	time.Sleep(time.Second * time.Duration(rand.Intn(10)))
-	log.Println("Doing job ", job.Id, ": backuping and uploading", job.Path)
-	done <- 1
+func (b *BackupWorker) Do() error {
+	for job := range b.Jobs {
+		time.Sleep(time.Second * 1)
+		log.Println("Worker", b.Id, ": Doing job ", job.Id, ": backuping and uploading", job.Path)
+	}
 	return nil
 }

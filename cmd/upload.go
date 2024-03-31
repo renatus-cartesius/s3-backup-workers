@@ -35,7 +35,13 @@ func exec(cmd *cobra.Command, args []string) {
 		log.Fatal(err)
 	}
 
-	done := make(chan int)
+	done := make(chan struct{})
+	jobs := make(chan workers.BackupJob, len(dirs))
+
+	for w := 1; w <= 20; w++ {
+		worker := workers.NewBackupWorker(w, jobs, done)
+		go worker.Do()
+	}
 
 	for i, d := range dirs {
 		// if d.IsDir() {
@@ -43,9 +49,8 @@ func exec(cmd *cobra.Command, args []string) {
 		// 	job := workers.NewBackupJob(i, d.Name())
 		// 	go worker.Do(job, done)
 		// }
-		worker := workers.NewBackupWorker()
 		job := workers.NewBackupJob(i, d.Name())
-		go worker.Do(job, done)
+		jobs <- *job
 	}
 
 	for range dirs {
