@@ -4,6 +4,7 @@ import (
 	"backup-workers/internal/workers"
 	"log"
 	"os"
+	"sync"
 
 	"github.com/spf13/cobra"
 )
@@ -35,12 +36,13 @@ func exec(cmd *cobra.Command, args []string) {
 		log.Fatal(err)
 	}
 
-	done := make(chan struct{})
-	jobs := make(chan workers.BackupJob, len(dirs))
+	jobs := make(chan *workers.BackupJob, len(dirs))
+	var wg sync.WaitGroup
 
 	for w := 1; w <= 20; w++ {
-		worker := workers.NewBackupWorker(w, jobs, done)
-		go worker.Do()
+		wg.Add(1)
+		worker := workers.NewBackupWorker(w, jobs, &wg)
+		go worker.StartWork()
 	}
 
 	for i, d := range dirs {
@@ -50,12 +52,16 @@ func exec(cmd *cobra.Command, args []string) {
 		// 	go worker.Do(job, done)
 		// }
 		job := workers.NewBackupJob(i, d.Name())
-		jobs <- *job
+		jobs <- job
 	}
 
-	// TODO: refac to using sync.WaitGroup
-	for range dirs {
-		<-done
-	}
+	log.Println("Creating closer")
+	log.Println("Closing jobs channel")
+	wg.Wait()
+	log.Println("Closing jobs channel")
+	close(jobs)
+	// go func() {
+	// }()
 
+	log.Println("Exiting main goroutine")
 }
