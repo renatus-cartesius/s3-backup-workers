@@ -39,7 +39,7 @@ func exec(cmd *cobra.Command, args []string) {
 	jobs := make(chan *workers.BackupJob, len(dirs))
 	var wg sync.WaitGroup
 
-	for w := 1; w <= 20; w++ {
+	for w := 1; w <= 10; w++ {
 		wg.Add(1)
 		worker := workers.NewBackupWorker(w, jobs, &wg)
 		go worker.StartWork()
