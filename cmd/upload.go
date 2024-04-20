@@ -45,23 +45,28 @@ func exec(cmd *cobra.Command, args []string) {
 		go worker.StartWork()
 	}
 
-	for i, d := range dirs {
-		// if d.IsDir() {
-		// 	worker := workers.NewBackupWorker()
-		// 	job := workers.NewBackupJob(i, d.Name())
-		// 	go worker.Do(job, done)
-		// }
-		job := workers.NewBackupJob(i, d.Name())
-		jobs <- job
-	}
+	go func() {
+		for i, d := range dirs {
+			// if d.IsDir() {
+			// 	worker := workers.NewBackupWorker()
+			// 	job := workers.NewBackupJob(i, d.Name())
+			// 	go worker.Do(job, done)
+			// }
+			job := workers.NewBackupJob(i, d.Name())
+			jobs <- job
+		}
+		close(jobs)
+	}()
 
 	log.Println("Creating closer")
 	log.Println("Closing jobs channel")
-	wg.Wait()
-	log.Println("Closing jobs channel")
-	close(jobs)
+
 	// go func() {
+	// 	close(jobs)
 	// }()
+	wg.Wait()
+
+	log.Println("Closing jobs channel")
 
 	log.Println("Exiting main goroutine")
 }
