@@ -1,9 +1,16 @@
 package workers
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
+	"fmt"
+	"io"
+	"io/fs"
 	"log"
+	"os"
+	"path/filepath"
 	"sync"
-	"time"
 )
 
 type BackupWorker struct {
@@ -24,10 +31,64 @@ func (b *BackupWorker) StartWork() error {
 	defer b.WaitGroup.Done()
 
 	for job := range b.Jobs {
-		time.Sleep(time.Second * 1)
-		log.Println("Worker", b.Id, ": Doing job ", job.Id, ": backuping and uploading", job.Path)
+		log.Println("Worker", b.Id, ": Doing job ", job.Id, ": backuping", job.Path)
+
+		var buf bytes.Buffer
+		err := packTarGz(job.Path, &buf)
+		if err != nil {
+			log.Fatalln(err)
+			return err
+		}
+
+		fileToWrite, err := os.OpenFile(fmt.Sprint("/backup/", job.Id, ".tar.gz"), os.O_CREATE|os.O_RDWR, os.FileMode(600))
+		if err != nil {
+			log.Fatalln(err)
+			panic(err)
+		}
+		if _, err := io.Copy(fileToWrite, &buf); err != nil {
+			log.Fatalln(err)
+			panic(err)
+		}
 	}
 
 	log.Println("Worker", b.Id, ": died succesfully")
+	return nil
+}
+
+func packTarGz(src string, buf io.Writer) error {
+	zr := gzip.NewWriter(buf)
+	tw := tar.NewWriter(zr)
+
+	filepath.Walk(src, func(path string, info fs.FileInfo, err error) error {
+		header, err := tar.FileInfoHeader(info, path)
+		if err != nil {
+			return err
+		}
+
+		header.Name = filepath.ToSlash(path)
+		if err := tw.WriteHeader(header); err != nil {
+			return err
+		}
+
+		if !info.IsDir() {
+			data, err := os.Open(path)
+			if err != nil {
+				return err
+			}
+			if _, err := io.Copy(tw, data); err != nil {
+
+			}
+		}
+		return nil
+	})
+
+	if err := tw.Close(); err != nil {
+		return err
+	}
+
+	if err := zr.Close(); err != nil {
+		return err
+	}
+
 	return nil
 }
