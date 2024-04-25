@@ -1,13 +1,11 @@
 package workers
 
 type BackupJob struct {
-	Id   int
 	Path string
 }
 
-func NewBackupJob(id int, path string) *BackupJob {
+func NewBackupJob(path string) *BackupJob {
 	return &BackupJob{
-		Id:   id,
 		Path: path,
 	}
 }
