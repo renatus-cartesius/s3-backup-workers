@@ -31,7 +31,7 @@ func (b *BackupWorker) StartWork() error {
 	defer b.WaitGroup.Done()
 
 	for job := range b.Jobs {
-		log.Println("Worker", b.Id, ": Doing job ", job.Id, ": backuping", job.Path)
+		log.Println("Worker", b.Id, ": Doing backup", job.Path)
 
 		var buf bytes.Buffer
 		err := packTarGz(job.Path, &buf)
@@ -40,7 +40,7 @@ func (b *BackupWorker) StartWork() error {
 			return err
 		}
 
-		fileToWrite, err := os.OpenFile(fmt.Sprint("/backup/", job.Id, ".tar.gz"), os.O_CREATE|os.O_RDWR, os.FileMode(600))
+		fileToWrite, err := os.OpenFile(fmt.Sprint("/backup/", filepath.Base(job.Path), ".tar.gz"), os.O_CREATE|os.O_RDWR, 0600)
 		if err != nil {
 			log.Fatalln(err)
 			panic(err)
@@ -59,7 +59,7 @@ func packTarGz(src string, buf io.Writer) error {
 	zr := gzip.NewWriter(buf)
 	tw := tar.NewWriter(zr)
 
-	filepath.Walk(src, func(path string, info fs.FileInfo, err error) error {
+	err := filepath.Walk(src, func(path string, info fs.FileInfo, err error) error {
 		header, err := tar.FileInfoHeader(info, path)
 		if err != nil {
 			return err
@@ -76,11 +76,16 @@ func packTarGz(src string, buf io.Writer) error {
 				return err
 			}
 			if _, err := io.Copy(tw, data); err != nil {
-
+				return err
 			}
+			data.Close()
 		}
 		return nil
 	})
+
+	if err != nil {
+		fmt.Println("Error on filepath", src, ":", err)
+	}
 
 	if err := tw.Close(); err != nil {
 		return err

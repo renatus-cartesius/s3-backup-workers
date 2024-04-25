@@ -20,6 +20,7 @@ var uploadCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(uploadCmd)
+	uploadCmd.Flags().String("src", "", "Path to dir to backup")
 }
 
 func exec(cmd *cobra.Command, args []string) {
@@ -27,11 +28,17 @@ func exec(cmd *cobra.Command, args []string) {
 	if err != nil {
 		log.Panic("error on loading config:", err)
 	}
+
+	src, err := cmd.Flags().GetString("src")
+	if err != nil {
+		log.Panic("error reading src:", err)
+	}
+
 	log.Println("Reading config from", config)
 	log.Println("Started uploading to S3")
 
 	// Getting subdirs
-	dirs, err := os.ReadDir("/")
+	dirs, err := os.ReadDir(src)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -39,34 +46,21 @@ func exec(cmd *cobra.Command, args []string) {
 	jobs := make(chan *workers.BackupJob, len(dirs))
 	var wg sync.WaitGroup
 
-	for w := 1; w <= 10; w++ {
+	for w := 1; w <= 12; w++ {
 		wg.Add(1)
 		worker := workers.NewBackupWorker(w, jobs, &wg)
 		go worker.StartWork()
 	}
 
 	go func() {
-		for i, d := range dirs {
-			// if d.IsDir() {
-			// 	worker := workers.NewBackupWorker()
-			// 	job := workers.NewBackupJob(i, d.Name())
-			// 	go worker.Do(job, done)
-			// }
-			job := workers.NewBackupJob(i, d.Name())
-			jobs <- job
+		for _, d := range dirs {
+			if d.IsDir() {
+				job := workers.NewBackupJob(src + "/" + d.Name())
+				jobs <- job
+			}
 		}
 		close(jobs)
 	}()
 
-	log.Println("Creating closer")
-	log.Println("Closing jobs channel")
-
-	// go func() {
-	// 	close(jobs)
-	// }()
 	wg.Wait()
-
-	log.Println("Closing jobs channel")
-
-	log.Println("Exiting main goroutine")
 }
