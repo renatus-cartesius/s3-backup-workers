@@ -3,7 +3,9 @@ version: '3'
 services:
   backup-service:
     # Using a Dockerfile is optional, but included for completeness.
-    image: golang:1.20-alpine
+    build:
+      context: .
+      dockerfile: Dockerfile
 
     volumes:
       # This is where VS Code should expect to find your project's source code and the value of "workspaceFolder" in .devcontainer/devcontainer.json
