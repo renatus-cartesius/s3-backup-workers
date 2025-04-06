@@ -4,7 +4,7 @@ ARG USERNAME=renatus
 ARG USER_UID=1000
 
 RUN adduser -u $USER_UID $USERNAME -D && \
-    apk add make && go install github.com/spf13/cobra-cli@latest && \
+    apk add make && go install github.com/spf13/cobra-cli@latest && go install github.com/go-delve/delve/cmd/dlv@latest && go install -v github.com/josharian/impl@v1.4.0 \
     chown renatus:renatus -R /go
 ENV PATH=/go/bin:/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
