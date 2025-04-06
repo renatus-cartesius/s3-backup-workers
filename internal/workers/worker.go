@@ -3,7 +3,6 @@ package workers
 import (
 	"archive/tar"
 	"bytes"
-	"compress/gzip"
 	"fmt"
 	"io"
 	"io/fs"
@@ -30,17 +29,19 @@ func NewBackupWorker(id int, jobs <-chan *BackupJob, wg *sync.WaitGroup) *Backup
 func (b *BackupWorker) StartWork() error {
 	defer b.WaitGroup.Done()
 
+	var buf bytes.Buffer
 	for job := range b.Jobs {
-		log.Println("Worker", b.Id, ": Doing backup", job.Path)
+		log.Println("Worker", b.Id, ": Doing backup", job.Src)
 
-		var buf bytes.Buffer
-		err := packTarGz(job.Path, &buf)
+		err := packTarGz(job.Src, &buf)
 		if err != nil {
 			log.Fatalln(err)
 			return err
 		}
 
-		fileToWrite, err := os.OpenFile(fmt.Sprint("/backup/", filepath.Base(job.Path), ".tar.gz"), os.O_CREATE|os.O_RDWR, 0600)
+		fileToWrite, err := os.OpenFile(fmt.Sprint(job.Dst, filepath.Base(job.Src), ".tar.gz"), os.O_CREATE|os.O_RDWR, 0600)
+		defer fileToWrite.Close()
+
 		if err != nil {
 			log.Fatalln(err)
 			panic(err)
@@ -49,6 +50,7 @@ func (b *BackupWorker) StartWork() error {
 			log.Fatalln(err)
 			panic(err)
 		}
+		buf.Reset()
 	}
 
 	log.Println("Worker", b.Id, ": died succesfully")
@@ -56,11 +58,16 @@ func (b *BackupWorker) StartWork() error {
 }
 
 func packTarGz(src string, buf io.Writer) error {
-	zr := gzip.NewWriter(buf)
-	tw := tar.NewWriter(zr)
+	tw := tar.NewWriter(buf)
+	// zt := gzip.NewWriter(tw)
+
+	var header *tar.Header
 
 	err := filepath.Walk(src, func(path string, info fs.FileInfo, err error) error {
-		header, err := tar.FileInfoHeader(info, path)
+		if err != nil {
+			return err
+		}
+		header, err = tar.FileInfoHeader(info, path)
 		if err != nil {
 			return err
 		}
@@ -72,13 +79,19 @@ func packTarGz(src string, buf io.Writer) error {
 
 		if !info.IsDir() {
 			data, err := os.Open(path)
+			defer func() {
+				err := data.Close()
+				if err != nil {
+					panic(err)
+				}
+			}()
+
 			if err != nil {
 				return err
 			}
 			if _, err := io.Copy(tw, data); err != nil {
 				return err
 			}
-			data.Close()
 		}
 		return nil
 	})
@@ -91,9 +104,9 @@ func packTarGz(src string, buf io.Writer) error {
 		return err
 	}
 
-	if err := zr.Close(); err != nil {
-		return err
-	}
+	// if err := zr.Close(); err != nil {
+	// 	return err
+	// }
 
 	return nil
 }
